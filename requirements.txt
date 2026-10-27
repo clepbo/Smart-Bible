@@ -1,0 +1,5 @@
+PySide6-Essentials>=6.7
+numpy>=1.26
+fastembed>=0.5
+anthropic>=2.3
+pywinauto>=0.6.8; sys_platform == "win32"

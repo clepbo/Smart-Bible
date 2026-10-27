@@ -1,0 +1,71 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # attach the zip to a GitHub release when a v* tag is pushed
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q tests
+
+      - name: Cache embedding model and verse index
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/index
+            data/models
+          key: semantic-${{ hashFiles('data/bibles/BSB.json.gz', 'smartbible/semantic.py') }}
+
+      - name: Build verse index (first run takes ~10 minutes)
+        shell: pwsh
+        run: if (!(Test-Path data/index/embeddings.npz)) { python scripts/build_index.py }
+
+      - name: Measure search quality
+        run: python scripts/eval_search.py
+
+      - name: Package with PyInstaller
+        run: pyinstaller --noconfirm smartbible.spec
+
+      - name: Self-test the packaged app
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\SmartBible\SmartBible.exe -ArgumentList "--self-test", "$PWD\selftest.json" -Wait -PassThru
+          Get-Content selftest.json
+          if ($p.ExitCode -ne 0) { throw "Self-test failed with exit code $($p.ExitCode)" }
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\SmartBible -DestinationPath SmartBible-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmartBible-windows
+          path: SmartBible-windows.zip
+          retention-days: 30
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SmartBible-windows.zip

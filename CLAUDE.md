@@ -33,12 +33,27 @@ and get the accurate scripture reference + text, then project it in one click, l
 - Public-domain translations (KJV, WEB, ASV) can be bundled freely.
 - Modern translations (NIV, NKJV, ESV, AMP, etc.) are copyrighted: need licensed access or the church's own permitted copy.
 
-## Open questions to ask the user before building
-- How do they project: BibleShow straight to screen, or via vMix/OBS?
-- Which translations do they use?
-- Is venue internet reliable enough to depend on, or must search be fully offline?
-- Windows desktop app vs. web app (runs in browser on the media PC)?
+## User's answers (settled)
+- Projection: **BibleShow straight to screen**; sometimes BibleShow's NDI output feeds other software.
+  → We use mode B (drive BibleShow by keyboard), so BibleShow keeps styling, translations and NDI.
+- Translations: all major English ones. BibleShow displays the licensed text; we only find references.
+  Bundled for search/preview: KJV, BSB, NHEB, ASV, BBE, YLT (public domain). Users can add licensed
+  copies (CSV / Zefania XML / JSON) in %APPDATA%\SmartBible\bibles.
+- Internet: online + offline both fine, but it must be smart. → Offline hybrid search always;
+  Claude (online, optional API key) merges in suggestions, validated against local text.
+- Platform: **Windows desktop app** (PySide6, packaged with PyInstaller; built by GitHub Actions on windows-latest).
 
-## Suggested approach
-- Start with a working prototype: local Bible JSON + embedding-based semantic search + reference parser,
-  simple UI, and one projection mode. Then iterate.
+## Architecture
+- `smartbible/reference.py`: reference parser (typed + spoken numbers). `books.py`: book names/aliases.
+- `smartbible/search.py`: `SearchEngine` fuses reference, `famous.py` (data/famous.json nicknames),
+  `keyword.py` (BM25 over all translations), `semantic.py` (bge-small ONNX embeddings over BSB).
+- `smartbible/ai.py`: Claude resolver (structured JSON output, refusal fallbacks, offline back-off).
+- `smartbible/bibleshow.py`: keyboard driver via pywinauto. BibleShow keys (from its manual): F5 focus
+  reference box, Enter view, Ctrl+Shift+F10 show, Ctrl+Shift+F8 hide, Ctrl+Shift+Down/Up next/prev.
+- `smartbible/ui.py`: main window. `smartbible_app.py --self-test out.json` is the headless CI check.
+- Quality: `python scripts/eval_search.py` (tests/eval_queries.py). Keep top-5 at 100% when changing ranking.
+
+## Not verified yet / next ideas
+- The BibleShow driver has not been tried against a real BibleShow install (built from its manual).
+  The Settings "Test with John 3:16" button exists for on-site calibration.
+- Ideas: global hotkey to bring Smart Bible to front, service history/playlist, direct NDI/OBS output.
