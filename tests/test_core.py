@@ -222,3 +222,19 @@ def test_ai_without_key():
     assert not ai.configured
     with pytest.raises(AIUnavailable):
         ai.resolve("love")
+
+
+def test_repo_paths_are_windows_safe():
+    """Windows can't check out names ending in a space/dot or containing <>:"|?* (CI checkout fails)."""
+    import subprocess
+
+    files = subprocess.run(
+        ["git", "ls-files"], cwd=app_root(), capture_output=True, text=True, check=True
+    ).stdout.splitlines()
+    bad = [
+        f
+        for f in files
+        for part in f.split("/")
+        if part != part.rstrip(" .") or any(c in part for c in '<>:"|?*\\')
+    ]
+    assert not bad, f"Rename these for Windows: {bad}"
